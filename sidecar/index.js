@@ -16349,6 +16349,17 @@ async function runOnce(o) {
     if (o.outputOnly) return {ok:false,isError:true,summary:'output-only',content:'Result repair cannot execute tools. Return only the corrected output.'};
     const realName = fromWire.get(c.name) || allWire.get(c.name) || c.name;
     const liveTool = registry.get(realName);
+    // SAMPLE_READONLY is a host-minted proof context. Deny at the OUTERMOST dispatch seam before recovery,
+    // idempotency, capability withholding, consent, nested composition, or registry dispatch can reinterpret the
+    // call. The fixed allowlist is empty in v1, so even a hallucinated/withheld/unknown tool call receives the
+    // same structural refusal. registry.dispatch carries a second identical guard as defense in depth.
+    if (sampleReadonly) {
+      return {
+        ok: false, isError: true, summary: 'sample-readonly',
+        content: 'SAMPLE_READONLY: tool dispatch is disabled for "' + String(realName || c.name || '') + '". '
+          + 'This proof may generate text and traverse the internal routing line, but it may not call tools or mutate local/external state.'
+      };
+    }
     // Recovery authority is independent of the station layout that happens to exist after restart. Evaluate it
     // against the canonical tool name before ordinary capability withholding; otherwise a removed prop turns an
     // exact reviewed replay into a generic WITHHELD loop and the safe continuation never finishes.

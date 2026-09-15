@@ -167,6 +167,8 @@ function twoStagePlan() {
 (async () => {
   const mock = await startMockOpenRouter([
     // order is load-bearing (script.find takes the FIRST match; later texts contain earlier phrases):
+    { when: 'force unknown tool', tool: { name: 'future_unknown_tool', args: {} } },
+    { when: 'force tool search escalation', tool: { name: 'tool_search', args: { query: 'filesystem write' } } },
     { when: 'empty downstream payload', text: '' },
     { when: 'force clean early stop', text: 'empty downstream payload' },
     { when: 'force provider failure', status: 500, error: 'forced provider failure' },
@@ -249,6 +251,13 @@ function twoStagePlan() {
     A.ok(lastUserOf(hopReq).indexOf(BRIEF_HDR + '\n' + HOP_BRIEF) >= 0,
       'the RECEIVING dock\'s standing brief rode the handoff turn: ' + lastUserOf(hopReq).slice(0, 300));
     A.ok(lastUserOf(hopReq).indexOf('stage one findings') >= 0, 'alongside the upstream output (the turn still carries the work)');
+    const sampleReadonlyOn = /^(1|true|yes|on)$/i.test(String(process.env.SKYNET_SAMPLE_READONLY || '').trim());
+    if (sampleReadonlyOn) {
+      for (const [label, rq] of [['entry', entryReq], ['hop', hopReq]]) {
+        A.eq(Array.isArray(rq.tools) ? rq.tools.length : 0, 0,
+          'sample-readonly advertises ZERO model-callable tools on the ' + label + ' provider request');
+      }
+    }
 
     // the recorded rows are in the station's real run history too (the ledger/run-store path, not a claim)
     const runsApi = await fetch(B + '/api/runs?agent=*&limit=50', { headers }).then(r => r.json());
@@ -326,6 +335,30 @@ function twoStagePlan() {
     }
     A.ok(toolMsgs.length >= 1, 'the model\'s shell.exec attempt produced a tool result the provider saw');
     A.ok(!toolMsgs.some(t => /pwned/.test(t)), 'the command NEVER executed — no unattended grant reached the sample run: ' + JSON.stringify(toolMsgs).slice(0, 300));
+    if (sampleReadonlyOn) {
+      A.ok(toolMsgs.every(t => /SAMPLE_READONLY|sample-readonly/i.test(t)),
+        'sample-readonly catches even a hallucinated/withheld shell call at DISPATCH time: ' + JSON.stringify(toolMsgs).slice(0, 300));
+
+      const collectToolResults = async (text) => {
+        const start = mock.requests.length;
+        const response = await post({ text });
+        const msgs = [];
+        for (const rq of mock.requests.slice(start)) {
+          for (const m of ((rq && rq.messages) || [])) if (m && m.role === 'tool') msgs.push(String(m.content || ''));
+        }
+        return { response, msgs };
+      };
+
+      const unknownProbe = await collectToolResults('SAMPLE JOB: force unknown tool.');
+      A.eq(unknownProbe.response.status, 200, 'unknown-tool probe still traverses and delivers');
+      A.ok(unknownProbe.msgs.length >= 1 && unknownProbe.msgs.every(t => /SAMPLE_READONLY|sample-readonly/i.test(t)),
+        'unknown/new tool names fail closed at the outer sample dispatch boundary');
+
+      const searchProbe = await collectToolResults('SAMPLE JOB: force tool search escalation.');
+      A.eq(searchProbe.response.status, 200, 'tool-search escalation probe still traverses and delivers');
+      A.ok(searchProbe.msgs.length >= 1 && searchProbe.msgs.every(t => /SAMPLE_READONLY|sample-readonly/i.test(t)),
+        'tool-search/deferred capability expansion fails closed at the outer sample dispatch boundary');
+    }
 
     /* ---- 6. THE SAMPLE IS UNADDRESSED ON EVERY RUN, NOT JUST THE FIRST (2026-08-07) ----
        This route's whole claim is "a REAL run on the REAL UNADDRESSED dispatch path" — the junctions must
