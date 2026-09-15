@@ -187,6 +187,10 @@
     async function dispatch(call, ctx) {
       ctx = ctx || {};
       if (call.parseError) return errResult('invalid tool arguments: ' + call.parseError);
+      if (ctx.sampleReadonly) {
+        const allow = ctx.sampleReadonlyAllow instanceof Set ? ctx.sampleReadonlyAllow : new Set(ctx.sampleReadonlyAllow || []);
+        if (!allow.has(call.name)) return errResult('SAMPLE_READONLY: tool dispatch denied for ' + call.name, 'sample-readonly');
+      }
       const tool = tools[call.name];
       if (!tool) return errResult('unknown tool: ' + call.name);
       // STOP MEANS STOP: an already-aborted run signal is refused at the door. childAbort below only THREADS an
