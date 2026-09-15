@@ -12,6 +12,8 @@ A.ok(index.includes("sampleReadonly: sampleReadonly, sampleReadonlyAllow:"), 'di
 A.ok(index.includes("isTask: false, reflect: false, taskKey: null"), 'sample persistence controls');
 A.ok(index.includes("const sys = sampleReadonly"), 'sample prompt bypasses normal context enrichment');
 A.ok(index.includes("!internal && !sampleReadonly"), 'sample suppresses memory/journey reuse');
-A.ok(registry.includes("if (ctx.sampleReadonly)"), 'central dispatcher guard');
-A.ok(registry.includes("'sample-readonly'"), 'dispatcher denial is explicit');
+A.ok(index.includes("if (sampleReadonly) {"), 'outer run dispatch has a sample-readonly guard');
+A.ok(index.includes("SAMPLE_READONLY: tool dispatch is disabled for"), 'outer run dispatch denial is explicit');
+A.ok(registry.includes("if (ctx.sampleReadonly)"), 'central registry dispatcher guard');
+A.ok(registry.includes("'sample-readonly'"), 'registry denial is explicit');
 console.log('sample-readonly wiring: PASS');
