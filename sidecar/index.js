@@ -91,6 +91,8 @@ const { resolveTools } = require('./capability/resolve.js');
 const { CAP_REGISTRY } = require('./capability/registry.js');
 const { toolsetRows, toggleableCaps } = require('./capability/toolsets.js');   // TOOLSETS console: capId families derived from CAP_REGISTRY
 const { makeCapCtx } = require('./capability/capGate.js');
+const SampleReadonly = require('./capability/sample-readonly.js');
+const SAMPLE_READONLY_TOKEN = Symbol('sample-readonly');
 const { composeOffice, stationWithObject, stationWithConnectors } = require('./capability/office.js');   // THE MOAT: interactive office = compute freebie + placed caps
 const { summarizeCapabilities } = require('./capability/capsummary.js');   // truthful "what you can/can't do" so the agent stops over-promising
 const { starnetManual } = require('./manual.js');   // truthful "how StarNet works" so the agent can guide a stuck Commander (interactive only)
@@ -9861,7 +9863,9 @@ function getSampleHub() {
   if (sampleHub) return sampleHub;
   sampleHub = makeChannelHub({
     channel: 'sample', maxMessageLength: 4000, agentPrefix: 'smp_', textBatchWaitMs: 0,
-    runOnce: runOnce, store: channelStore,
+    runOnce: (opts) => SampleReadonly.enabled(process.env)
+      ? runOnce(Object.assign({}, opts, { sampleReadonlyToken: SAMPLE_READONLY_TOKEN, isTask: false, reflect: false, taskKey: null }))
+      : runOnce(opts), store: channelStore,
     historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }),
     /* THE SAMPLE IS UNADDRESSED, EVERY TIME. This route's whole claim is "a REAL run on the REAL UNADDRESSED
        dispatch path" — the FILTER/SPLITTER must sort it. The hub's ordinary chat→agent bookkeeping saved a
@@ -14943,6 +14947,7 @@ async function runOnce(o) {
     throw Object.assign(new Error('StarNet is frozen at a verified pre-update recovery point.'), { code: 'UPDATE_MUTATIONS_FROZEN' });
   }
   const { key, system: rawSystem, messages = [], agentId = 'agent', signal, runId } = o;
+  const sampleReadonly = SampleReadonly.enabled(process.env) && o.sampleReadonlyToken === SAMPLE_READONLY_TOKEN;
   const runStartedAt = Date.now();
   let system = rawSystem;
   if (o.workdir) {
@@ -15909,6 +15914,7 @@ async function runOnce(o) {
   const checkpointedMutationRoots = new Set();
   const capCtx = makeCapCtx(resolved, Object.assign({
     emit, consent, summon, timeoutMs: CAPS.toolTimeoutMs, runId, streamId, signal: signal, ownerTrusted,
+    sampleReadonly: sampleReadonly, sampleReadonlyAllow: sampleReadonly ? SampleReadonly.allowlist() : null,
     // Host-minted routine identity for routine.notepad. Interactive/model-authored runs cannot name another
     // job: only the autonomous schedule path receives this context field.
     cronJobId: (surface === 'autonomous' && trigger === 'schedule') ? String(o.cronJobId || '') : '',
@@ -16186,6 +16192,7 @@ async function runOnce(o) {
   // search loses the capability outright, and a weak one may claim it did the work anyway. SKYNET_TOOL_SEARCH=0
   // advertises everything, exactly as before this feature — the escape hatch for an operator whose model is
   // one of those, and the A/B control for measuring whether deferral (rather than the model) caused a miss.
+  if (sampleReadonly) resolved = SampleReadonly.attenuate(resolved);
   const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
   const directDomainWithheld = (name) => !!directDomainTask && (/^team\./.test(name) || /^browser\./.test(name) || name === 'web_search' || name === 'web_request');
   const deferredNames = new Set((deferralOff ? [] : (resolved.deferred || [])).filter(n => !directDomainWithheld(n)));
@@ -16867,7 +16874,7 @@ async function runOnce(o) {
   // exclusively from completed journey outcomes, is agent-specific, and disappears immediately when the
   // Commander suppresses that domain. It grants no tools or authority; it is a bounded planning prior.
   let journeyBlock = '';
-  if (!internal) { try { const jb = journeyStore.adaptationBlock(agentId); if (jb) journeyBlock = '\n\n' + jb; } catch (_) { journeyBlock = ''; } }
+  if (!internal && !sampleReadonly) { try { const jb = journeyStore.adaptationBlock(agentId); if (jb) journeyBlock = '\n\n' + jb; } catch (_) { journeyBlock = ''; } }
   /* DELIVERABLE NAMING — asked for at THE one final prompt seam, so every real-work surface gets it identically:
      the watched browser run, a cron routine, a Workshop shift, a messaging reply. Putting it on handleRun alone
      (as a first draft did) left the AWAY runs — the ones nobody watched and therefore most need a readable name —
@@ -16882,9 +16889,11 @@ async function runOnce(o) {
     + summarizeCapabilities(resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock + runtimeSkillBlock
     + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + directDomainBlock + journeyBlock
     + deliverableNote, { isTask, internal, tools: resolved.tools });
-  const sys = internal
-    ? (String(system || '') + evidenceBlock)
-    : withQuests(taskSystem, questsBlock);   // ground-truth caps + task-context doctrine share the one final prompt seam
+  const sys = sampleReadonly
+    ? String(system || '')
+    : internal
+      ? (String(system || '') + evidenceBlock)
+      : withQuests(taskSystem, questsBlock);   // ground-truth caps + task-context doctrine share the one final prompt seam
   // H1.2: bulletproof resume — if this run arrives with NO prior history (a fresh restart whose browser save was
   // wiped, or any caller that only sent the new directive) AND it names an explicit workstream, seed the
   // conversation from the durable server transcript so the agent remembers the dialogue. Never overrides real
@@ -16892,14 +16901,14 @@ async function runOnce(o) {
   // A retry is a new execution of an existing user turn. Reuse only the latest durable user
   // row whose run, agent, stream and text all match; equal text alone never deduplicates a send.
   let retryDirective = null;
-  if (streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
+  if (streamId && !internal && !sampleReadonly && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
     const latest = transcriptStore.history(streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
     if (latest && latest.sourceRunId === o.retryUserRunId && latest.agentId === agentId
       && latest.content === redact(latestUserText(messages))) retryDirective = latest;
   }
   let convo = messages;
   try {
-    if (!o.recovery && !o.groupTools && !internal && streamId && Array.isArray(messages) && messages.filter(m => m && m.role !== 'system').length <= 1) {
+    if (!o.recovery && !o.groupTools && !internal && !sampleReadonly && streamId && Array.isArray(messages) && messages.filter(m => m && m.role !== 'system').length <= 1) {
       const seed = transcriptStore.reconstruct(streamId, { limit: 100 });
       if (seed.length) {
         // Keep the incoming turn (including attachment blocks), but not its older retry copy or
@@ -16921,7 +16930,7 @@ async function runOnce(o) {
   // nothing injected (byte-identical to a memoryless run). Never fails the run.
   // internal self-talk never receives the memory fence — and must not bump useCount/recency on stored records
   // (a title call crediting memory.used would fake the Memory Core stats).
-  if (!internal) try {
+  if (!internal && !sampleReadonly) try {
     const stored = notebookStore.get('notebook:' + agentId);
     const recs = o.recovery ? [] : (Array.isArray(stored) ? stored : []);
     const q = recentUserText(messages);   // last up-to-3 user turns (attachment turns flattened to THEIR text) — a bare "yes, do that" still ranks against the ask it answers
