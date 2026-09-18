@@ -58,7 +58,7 @@ assert.match(css, /@media \(hover: none\), \(pointer: coarse\)[\s\S]*?\.lv-x\s*\
 // Exercise the endpoint policy, not only its spelling. The chosen pause is the base truth; a partial that
 // visibly trails off gets a bounded extra beat so saying a company name and then spelling it remains one turn.
 {
-  const m = /(  function endpointSilenceMs\(text, baseMs\) \{[\s\S]*?\n  \})/.exec(source);
+  const m = /(  function endpointSilenceMs\(text, baseMs\) \{[\s\S]*?\r?\n  \})/.exec(source);
   assert.ok(m, 'voice-live.js still defines the endpoint policy as an extractable pure function');
   // eslint-disable-next-line no-new-func
   const endpointSilenceMs = new Function(m[1] + '\nreturn endpointSilenceMs;')();
@@ -75,12 +75,12 @@ assert.match(css, /@media \(hover: none\), \(pointer: coarse\)[\s\S]*?\.lv-x\s*\
    talk but never hear an answer. Assert it per-function, not file-wide: a file-wide match would pass while
    one runtime path remained broken. */
 function bodyOf(name) {
-  const m = new RegExp('function ' + name + '\\([\\s\\S]*?\\n  \\}').exec(source);
+  const m = new RegExp('function ' + name + '\\([\\s\\S]*?\\r?\\n  \\}').exec(source);
   assert.ok(m, 'voice-live.js still defines ' + name + '()');
   return m[0];
 }
 {
-  const m = /(  function availabilityFailure\([\s\S]*?\n  \})/.exec(source);
+  const m = /(  function availabilityFailure\([\s\S]*?\r?\n  \})/.exec(source);
   assert.ok(m, 'voice-live.js still classifies failed availability probes before opening the mic');
   // eslint-disable-next-line no-new-func
   const availabilityFailure = new Function(m[1] + '\nreturn availabilityFailure;')();
@@ -138,7 +138,7 @@ assert.match(cmdSource, /VoiceLive\.isActive\(\) && VoiceLive\.rebind/, 'a voice
 // Exercise the binding state machine, not only its spelling. A UI rail switch changes activeId but
 // cannot change boundWsId; the next call-owned event restores the original workstream and transcript.
 {
-  const m = /(  let boundWsId = null;[\s\S]*?  function ensureBoundFocus\(\) \{[\s\S]*?\n  \})\n\n  function handleTranscript/.exec(source);
+  const m = /(  let boundWsId = null;[\s\S]*?  function ensureBoundFocus\(\) \{[\s\S]*?\r?\n  \})\r?\n\r?\n  function handleTranscript/.exec(source);
   assert.ok(m, 'voice-live.js still carries the complete session-binding state machine');
   let activeId = 'research';
   const sessions = {
@@ -173,7 +173,7 @@ assert.match(cmdSource, /VoiceLive\.isActive\(\) && VoiceLive\.rebind/, 'a voice
 // The output path is session-owned too. Live Voice force-enables a shared speaker, so Chat must
 // explicitly refuse speech/heartbeat use by every non-bound workstream.
 {
-  const m = /(  function liveVoiceOwns\(ws\) \{[\s\S]*?\n  \})/.exec(chatSource);
+  const m = /(  function liveVoiceOwns\(ws\) \{[\s\S]*?\r?\n  \})/.exec(chatSource);
   assert.ok(m, 'chat.js defines the live-call output ownership gate');
   let callActive = true;
   const VoiceLive = { boundSessionId: () => 'research' };
@@ -200,7 +200,7 @@ assert.match(chatSource, /\(!liveVoiceCall\(\) \|\| liveVoiceOwns\(ws\)\)[\s\S]{
    speaks is an APPROVAL, which is a real blocking permission with a durable card. */
 assert.match(chatSource, /function liveVoiceCall\(\)/, 'chat.js knows whether a call is live');
 {
-  const choicesBody = /(  function choices\(items, onPick, opts\) \{[\s\S]*?\n  \})/.exec(chatSource);
+  const choicesBody = /(  function choices\(items, onPick, opts\) \{[\s\S]*?\r?\n  \})/.exec(chatSource);
   assert.ok(choicesBody, 'chat.js still defines choices()');
   assert.match(choicesBody[1], /if \(liveVoiceCall\(\)\) return;/, 'chip rows NEVER render during a live call');
   const briefBody = /(  function briefReadCard\(ws, p\) \{[\s\S]{0,400})/.exec(chatSource);
@@ -217,7 +217,7 @@ assert.match(bodyOf('chipCommand'), /\.click\(\)/, 'a spoken pick clicks the REA
 // the matcher is pure — extract and exercise it for real (the chat-linkify idiom: chat/voice files are
 // browser-flow and not node-loadable whole)
 {
-  const m = /(  function matchChoice\([\s\S]*?\n  \})/.exec(source);
+  const m = /(  function matchChoice\([\s\S]*?\r?\n  \})/.exec(source);
   assert.ok(m, 'voice-live.js still defines matchChoice()');
   // eslint-disable-next-line no-new-func
   const matchChoice = new Function(m[1] + '\nreturn matchChoice;')();
@@ -251,7 +251,7 @@ for (const fn of ['startDictation']) {
 assert.match(bodyOf('finish'), /closeMeterTap\(\)/, 'leaving live voice releases the meter tap device');
 assert.match(bodyOf('finish'), /clearInterval\(meterClock\)/, 'leaving live voice stops the dictation meter clock');
 {
-  const tap = /(  async function openMeterTap\(seq\) \{[\s\S]*?\n  \})/.exec(source);
+  const tap = /(  async function openMeterTap\(seq\) \{[\s\S]*?\r?\n  \})/.exec(source);
   assert.ok(tap, 'voice-live.js still defines openMeterTap()');
   assert.match(tap[1], /Promise\.race/, 'a dismissed WebView2 permission prompt degrades to a flat half, never a hung tap');
   assert.match(tap[1], /seq !== sessionSeq/, 'a late permission grant cannot hold an orphaned meter device');
@@ -259,7 +259,7 @@ assert.match(bodyOf('finish'), /clearInterval\(meterClock\)/, 'leaving live voic
   assert.doesNotMatch(tap[1], /setError|setState|scheduleReconnect/, 'the meter tap is cosmetic — its failure never touches session state');
 }
 {
-  const m = /(  function dictationMeterTick\(\) \{[\s\S]*?\n  \})/.exec(source);
+  const m = /(  function dictationMeterTick\(\) \{[\s\S]*?\r?\n  \})/.exec(source);
   assert.ok(m, 'voice-live.js still defines dictationMeterTick()');
   const run = env => {
     const pushes = [];
