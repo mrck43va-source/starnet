@@ -138,8 +138,11 @@ assert.match(cmdSource, /VoiceLive\.isActive\(\) && VoiceLive\.rebind/, 'a voice
 // Exercise the binding state machine, not only its spelling. A UI rail switch changes activeId but
 // cannot change boundWsId; the next call-owned event restores the original workstream and transcript.
 {
-  const m = /(  let boundWsId = null;[\s\S]*?  function ensureBoundFocus\(\) \{[\s\S]*?\n  \})\n\n  function handleTranscript/.exec(source);
-  assert.ok(m, 'voice-live.js still carries the complete session-binding state machine');
+  const bindingStart = source.indexOf('  let boundWsId = null;');
+  const handleStart = source.indexOf('  function handleTranscript', bindingStart);
+  assert.ok(bindingStart >= 0 && handleStart > bindingStart,
+    'voice-live.js still carries the complete session-binding state machine');
+  const bindingSource = source.slice(bindingStart, handleStart);
   let activeId = 'research';
   const sessions = {
     research: { id: 'research', archived: false },
@@ -153,7 +156,7 @@ assert.match(cmdSource, /VoiceLive\.isActive\(\) && VoiceLive\.rebind/, 'a voice
   };
   // eslint-disable-next-line no-new-func
   const binding = new Function('Workstreams', 'Chat', 'App', 'Voice', 'caption', 'refreshTask',
-    'let spokenApprovalId = null;\n' + m[1] + '\nreturn { bindSession, ensureBoundFocus, bound: () => boundWsId };'
+    'let spokenApprovalId = null;\n' + bindingSource + '\nreturn { bindSession, ensureBoundFocus, bound: () => boundWsId };'
   )(
     Workstreams,
     { load: ws => effects.push('load:' + ws.id) },
