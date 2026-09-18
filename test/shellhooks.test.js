@@ -21,6 +21,9 @@ const NODE = JSON.stringify(process.execPath);
 // A hook script written as `node -e "<program>"`, which is what a real one looks like from this module's side.
 const script = (program) => NODE + ' -e ' + JSON.stringify(program);
 const writeHooks = (hooks) => fsp.writeFile(HOOKS, JSON.stringify({ hooks }, null, 2), 'utf8');
+// Windows can keep a just-terminated child process's cwd handle briefly. Retry only
+// the test-fixture cleanup; production shell-hook behavior remains unchanged.
+const cleanupDir = () => fsp.rm(DIR, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
 const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, hooksFile: HOOKS, allowFile: ALLOW, cwd: DIR, timeoutMs: 8000 }, extra || {}));
 
 (async () => {
@@ -195,11 +198,11 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
       A.eq(hooks.length, 0, 'no hooks file -> no hooks');
       A.eq(errors.length, 0, 'and no complaints — most stations will never write one');
     }
-  } finally { await fsp.rm(DIR, { recursive: true, force: true }); }
+  } finally { await cleanupDir(); }
 
   A.report('shellhooks.test');
 })().catch(async (e) => {
-  try { await fsp.rm(DIR, { recursive: true, force: true }); } catch (_) {}
+  try { await cleanupDir(); } catch (_) {}
   console.log('FAIL: shellhooks.test threw -- ' + (e && e.stack || e));
   process.exit(1);
 });
