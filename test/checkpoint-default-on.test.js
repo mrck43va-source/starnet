@@ -7,7 +7,9 @@ const fs = require('fs');
 const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
 
-const m = /function checkpointsEnabledFromEnv\(raw\) \{[\s\S]*?\n\}\n/.exec(src);
+// Accept both LF and CRLF checkouts. Git may materialize CRLF on Windows even when
+// repository text is LF; the test is about the shipped function, not line endings.
+const m = /function checkpointsEnabledFromEnv\(raw\) \{[\s\S]*?\r?\n\}\r?\n/.exec(src);
 A.ok(m, 'index.js defines checkpointsEnabledFromEnv');
 const enabled = new Function(m[0] + 'return checkpointsEnabledFromEnv;')();
 A.eq(enabled(undefined), true, 'no env var → checkpoints ON');
