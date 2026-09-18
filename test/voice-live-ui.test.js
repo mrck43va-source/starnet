@@ -5,11 +5,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-const index = fs.readFileSync(path.join(root, 'frontend', 'index.html'), 'utf8');
-const source = fs.readFileSync(path.join(root, 'frontend', 'app', 'voice-live.js'), 'utf8');
-const voiceSource = fs.readFileSync(path.join(root, 'frontend', 'app', 'voice.js'), 'utf8');
-const chatSource = fs.readFileSync(path.join(root, 'frontend', 'app', 'chat.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'frontend', 'css', 'app.css'), 'utf8');
+// These are source-text assertions, not newline-format assertions. Normalize Git's
+// platform checkout line endings once so the same parser runs on Windows and Linux.
+const readSource = file => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+const index = readSource(path.join(root, 'frontend', 'index.html'));
+const source = readSource(path.join(root, 'frontend', 'app', 'voice-live.js'));
+const voiceSource = readSource(path.join(root, 'frontend', 'app', 'voice.js'));
+const chatSource = readSource(path.join(root, 'frontend', 'app', 'chat.js'));
+const css = readSource(path.join(root, 'frontend', 'css', 'app.css'));
 
 assert.doesNotMatch(index, /id="voice-mode"/, 'legacy hands-free button is removed from COMMS');
 assert.equal((index.match(/id="voice-live"/g) || []).length, 1, 'Local Live is the one hands-free control');
