@@ -10,10 +10,10 @@ const vm = require('vm');
 const A = require('./_assert.js');
 
 const source = fs.readFileSync(path.join(__dirname, '../frontend/app/stationui.js'), 'utf8');
-const laneMatch = source.match(/function abilitySkillsLane\(body\) \{[\s\S]*?\n  \}\n  window\.AbilityLanes/);
+const laneMatch = source.match(/function abilitySkillsLane\(body\) \{[\s\S]*?\r?\n  \}\r?\n  window\.AbilityLanes/);
 A.ok(laneMatch, 'the ABILITIES Skills lane is present');
 
-const laneSource = laneMatch[0].replace(/\n  window\.AbilityLanes[\s\S]*$/, '');
+const laneSource = laneMatch[0].replace(/\r?\n  window\.AbilityLanes[\s\S]*$/, '');
 const context = {
   present: [{ id: 'agent', name: 'Agent' }],
   sel: 0,
@@ -43,7 +43,7 @@ A.ok(!source.includes('referenced package files remain at the source'), 'the obs
 // Exercise the actual UI loader with the real authority projection, not a second grant calculation.
 async function checkAvailability() {
   const { effectiveToolsets } = require('../sidecar/capability/effective-toolsets.js');
-  const loader = source.match(/function loadSkillLibrary\(agentId\) \{[\s\S]*?\n  \}/)[0];
+  const loader = source.match(/function loadSkillLibrary\(agentId\) \{[\s\S]*?\r?\n  \}/)[0];
   async function run(view, shared = []) {
     let requested = '', rendered = null;
     const host = { innerHTML:'', closest:() => null };
