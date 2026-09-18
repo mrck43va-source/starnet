@@ -137,8 +137,8 @@ A.ok(/const coldHead = \(tail\) => '◈ ' \+ esc\(tail\);/.test(mkt),
   const escSrc = utilSrc.slice(escAt, utilSrc.indexOf('  },', escAt) + 4);
   const escReal = new Function('return ({ ' + escSrc + ' }).esc;')();          // the SHIPPED escaper, not a copy
   A.eq(escReal('<b>'), '&lt;b&gt;', 'precondition: the extracted escaper is the real one');
-  const headAt = mkt.indexOf('function noticedHead(tail)');
-  const headSrc = mkt.slice(headAt, mkt.indexOf('\n  }\n', headAt) + 4);
+  const headSrc = A.fnBody(mkt, 'function noticedHead(');
+  A.ok(headSrc, 'the shipped noticedHead() helper is extractable without depending on checkout line endings');
   const mkHead = (agentName) => new Function('esc', 'ctx', headSrc + '\n return noticedHead;')(
     s => escReal(s == null ? '' : s), { agentName });
   const evil = mkHead('<img src=x onerror="alert(1)">')('picked from your real work');
