@@ -20,7 +20,9 @@ const TEST_ONLY_LEDGER_OVERRIDE = 'TEST_ONLY_UNCOMMITTED_LEDGER_FIXTURE';
 
   const repoRoot = path.resolve(__dirname, '..');
   const ledgerFile = path.join(repoRoot, 'qa', 'product-perfect', 'claims.json');
-  const ledgerBytes = fs.readFileSync(ledgerFile);
+  // Raw-byte equality is intentionally checked against the candidate Git blob, not a
+  // checkout whose line endings may be materialized as CRLF on Windows.
+  const ledgerBytes = execFileSync('git', ['show', 'HEAD:qa/product-perfect/claims.json'], { cwd: repoRoot });
   const ledger = JSON.parse(ledgerBytes.toString('utf8'));
   const clone = value => JSON.parse(JSON.stringify(value));
 
