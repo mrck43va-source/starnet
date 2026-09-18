@@ -130,20 +130,34 @@
     // agent-package skills compose FIRST so, under the budget cap, GLOBAL extras get truncated before the
     // class package (the class's own recipes are the priority the summon promised).
     if (agentSet) live.sort((a, b) => (agentSet.has(b.slug) ? 1 : 0) - (agentSet.has(a.slug) ? 1 : 0));
-    let used = 0, omitted = 0;
+    // Count framing/separators as part of the same prompt budget. Keep the header concise so the
+    // shipped default set stays useful without consuming budget on explanatory boilerplate.
+    const head = '\n\n## INSTALLED SKILLS\nUse these enabled recipes when a task matches them.\n\n';
+    let omitted = 0;
     const parts = [];
     for (const s of live) {
       const block = '### ' + s.name + (s.description ? ' -- ' + s.description : '') + '\n' + s.body;
-      if (parts.length && used + block.length > budget) { omitted++; continue; }
-      parts.push(block); used += block.length;
+      const candidate = head + parts.concat(block).join('\n\n');
+      // Preserve the longstanding invariant that one oversized recipe is still shown rather than
+      // silently dropping everything. Once one recipe is present, the declared budget is strict.
+      if (parts.length && candidate.length > budget) { omitted++; continue; }
+      parts.push(block);
     }
     if (!parts.length) return '';
-    const head = '\n\n## INSTALLED SKILLS\n'
-      + 'Your Commander enabled these ready-made skill recipes and your workstation supports them. '
-      + 'When a task matches one, FOLLOW its recipe instead of improvising.\n\n';
-    const tail = omitted ? ('\n\n(' + omitted + ' more enabled skill' + (omitted > 1 ? 's were' : ' was')
-      + ' omitted here to keep the prompt lean.)') : '';
-    return head + parts.join('\n\n') + tail;
+    const render = () => {
+      const tail = omitted ? ('\n\n(' + omitted + ' more enabled skill' + (omitted > 1 ? 's were' : ' was')
+        + ' omitted here to keep the prompt lean.)') : '';
+      return head + parts.join('\n\n') + tail;
+    };
+    let out = render();
+    // The omission notice itself consumes bytes. If it pushes a multi-recipe prompt over budget,
+    // remove the lowest-priority tail recipe until the final returned string satisfies the cap.
+    while (parts.length > 1 && out.length > budget) {
+      parts.pop();
+      omitted++;
+      out = render();
+    }
+    return out;
   }
 
   return { parse, parseFrontmatter, normalize, loadDir, isAvailable, isEnabled, isAgentEnabled, catalog, compose, slugify };
