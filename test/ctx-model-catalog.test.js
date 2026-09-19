@@ -22,7 +22,9 @@ const path = require('path');
 const vm = require('vm');
 
 const SRC = path.join(__dirname, '..', 'frontend', 'app', 'harness.js');
-const source = fs.readFileSync(SRC, 'utf8');
+// This test extracts source functions; normalize checkout line endings so Windows CRLF
+// and Linux LF exercise the same catalog behavior.
+const source = fs.readFileSync(SRC, 'utf8').replace(/\r\n/g, '\n');
 
 /* ---------- slice the real bodies out of harness.js ---------- */
 
