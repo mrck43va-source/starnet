@@ -130,19 +130,28 @@
     // agent-package skills compose FIRST so, under the budget cap, GLOBAL extras get truncated before the
     // class package (the class's own recipes are the priority the summon promised).
     if (agentSet) live.sort((a, b) => (agentSet.has(b.slug) ? 1 : 0) - (agentSet.has(a.slug) ? 1 : 0));
-    let used = 0, omitted = 0;
+    const head = '\n\n## INSTALLED SKILLS\n'
+      + 'Follow these enabled, supported recipes when relevant.\n\n';
+    let used = head.length, omitted = 0;
     const parts = [];
     for (const s of live) {
       const block = '### ' + s.name + (s.description ? ' -- ' + s.description : '') + '\n' + s.body;
-      if (parts.length && used + block.length > budget) { omitted++; continue; }
-      parts.push(block); used += block.length;
+      const sep = parts.length ? 2 : 0;
+      if (parts.length && used + sep + block.length > budget) { omitted++; continue; }
+      parts.push(block); used += sep + block.length;
     }
     if (!parts.length) return '';
-    const head = '\n\n## INSTALLED SKILLS\n'
-      + 'Your Commander enabled these ready-made skill recipes and your workstation supports them. '
-      + 'When a task matches one, FOLLOW its recipe instead of improvising.\n\n';
-    const tail = omitted ? ('\n\n(' + omitted + ' more enabled skill' + (omitted > 1 ? 's were' : ' was')
+    let tail = omitted ? ('\n\n(' + omitted + ' more enabled skill' + (omitted > 1 ? 's were' : ' was')
       + ' omitted here to keep the prompt lean.)') : '';
+    // Keep framing + separators + omission notice inside the same budget. A single oversized
+    // skill is still included by design so compose never silently drops everything.
+    while (tail && parts.length > 1 && used + tail.length > budget) {
+      const removed = parts.pop();
+      used -= removed.length + 2;
+      omitted++;
+      tail = '\n\n(' + omitted + ' more enabled skill' + (omitted > 1 ? 's were' : ' was')
+        + ' omitted here to keep the prompt lean.)';
+    }
     return head + parts.join('\n\n') + tail;
   }
 
