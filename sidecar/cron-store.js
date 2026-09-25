@@ -68,7 +68,7 @@
 
      This list is STORAGE, not authority. sidecar/inputpolicy.js owns the authoritative whitelist
      (GRANTABLE_UNATTENDED) and re-filters it at the gate on every run, so a hand-edited or migrated
-     cron.jobs.json can never widen a run past what the host models — the two filters are deliberately
+     cron.jobs.runtime.json can never widen a run past what the host models — the two filters are deliberately
      independent (defense in depth), which is also why this module needs no cross-require of the policy. */
   const GRANTABLE = ['workbench', 'connectors'];
   function normGrants(v) {

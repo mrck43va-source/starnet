@@ -6,7 +6,7 @@
    there is NO Date.now / Math.random / new Date() / setInterval / setTimeout / fs / crypto in this file, so it
    passes lint-determinism.js and is headless-testable with a fake clock + a fake runOnce (exactly like
    loop.js / permissions.js / cron-store.js). The ambient half — the real setInterval timer, Date.now,
-   crypto.randomUUID, the cron.jobs.json load/persist, the boot-resume reconcile — lives ONLY in
+   crypto.randomUUID, the cron.jobs.runtime.json load/persist, the boot-resume reconcile — lives ONLY in
    sidecar/index.js (the lint-exempt composition root). See docs/CRON_INTEGRATION_PLAN.md §3.1, §3.3, §4b.
 
    The whole subsystem is OPT-IN: index.js arms the timer only when SKYNET_CRON_ENABLED is set, so when it is
