@@ -1,0 +1,50 @@
+name: cron-store-migration-gate
+
+on:
+  pull_request:
+    branches:
+      - openck/v0.11.1-safety-base
+  push:
+    branches:
+      - chatgpt/fix-cronstore-norton-20260924
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cron-store-migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cron-store:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Legacy migration boot test
+        run: node test/cron.legacy-migration.test.js
+
+      - name: Cron persistence and recovery tests
+        run: |
+          node test/cron.api.test.js
+          node test/cron.degraded.e2e.test.js
+          node test/emergency-recovery.http.test.js
+
+      - name: Station recovery and parity tests
+        run: |
+          node test/station-recovery.test.js
+          node test/station-recovery-cli.test.js
+          node test/update-state-parity.test.js
+
+      - name: Diff hygiene
+        run: git diff --check
