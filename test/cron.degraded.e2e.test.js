@@ -1,6 +1,6 @@
 /* node test/cron.degraded.e2e.test.js — EMPTY-STORE FAIL-LOUD (routine hardening item 2, 2026-08-21).
    Boots a real sidecar (child process, isolated temp WORKSPACES — never the real station) against a workspace
-   whose cron.jobs.json AND cron.jobs.json.bak are BOTH corrupt and proves:
+   whose cron.jobs.runtime.json AND cron.jobs.runtime.json.bak are BOTH corrupt and proves:
      · GET /api/cron reports degraded:{ quarantinePath, since } (and the corrupt main was quarantined, not wiped)
      · the scheduler does not tick while degraded (health.lastTickError names the degradation; no tick success)
      · a write that would persist an EMPTY envelope is REFUSED (POST /api/cron/remove on the only job -> 500,
@@ -57,7 +57,7 @@ async function boot(workspaces, extraEnv) {
 
 (async () => {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cron-degraded-'));
-  const cronPath = path.join(ws, 'cron.jobs.json');
+  const cronPath = path.join(ws, 'cron.jobs.runtime.json');
   // a CORRUPT main AND a corrupt .bak: nothing recoverable. The old behavior loaded [] and persisted the wipe.
   fs.writeFileSync(cronPath, '{"version":1,"jobs":[{"id":"rt_lost","name":"Lost routine",', 'utf8');
   fs.writeFileSync(cronPath + '.bak', 'not json at all', 'utf8');

@@ -8,7 +8,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture');
   const host = SidecarFixture.create({ env: { SKYNET_DEV: '1', SKYNET_CRON_TICK_MS: '300' } });
   const json = (m, p, b) => host.json(m, p, b);
   const read = name => fs.existsSync(path.join(host.workspace, name)) ? fs.readFileSync(path.join(host.workspace, name), 'utf8') : null;
-  const permissions = () => Object.fromEntries(['_commander.autonomy.json', 'cron.armed.json', 'cron.jobs.json', 'loops.json', ...fs.readdirSync(host.workspace).filter(n => n.endsWith('.workshop.json'))].map(n => [n, read(n)]));
+  const permissions = () => Object.fromEntries(['_commander.autonomy.json', 'cron.armed.json', 'cron.jobs.runtime.json', 'loops.json', ...fs.readdirSync(host.workspace).filter(n => n.endsWith('.workshop.json'))].map(n => [n, read(n)]));
   const status = async value => {
     const r = await json('GET', '/api/halt');
     assert.equal(r.status, 200);

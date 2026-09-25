@@ -50,7 +50,7 @@ process.on('exit', cleanup);
 const mkSave = () => makeSaveStore({ fs, pathMod: path, root: WS, clock });
 const mkNotebook = () => makeMemoryStore({ fs, path, workspaces: WS, writeDurable: undefined });
 const ROSTER_FILE = path.join(WS, 'agent.roster.json');
-const CRON_FILE = path.join(WS, 'cron.jobs.json');
+const CRON_FILE = path.join(WS, 'cron.jobs.runtime.json');
 const loadRoster = () => { const r = readJsonResilient({ fs }, ROSTER_FILE); return (r.status === 'ok' || r.status === 'recovered') ? r.value : undefined; };
 const saveRoster = (env) => writeJsonResilient({ fs, path }, ROSTER_FILE, env);
 const loadCron = () => { const r = readJsonResilient({ fs }, CRON_FILE); return (r.status === 'ok' || r.status === 'recovered') ? r.value : undefined; };

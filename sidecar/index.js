@@ -3974,7 +3974,7 @@ const chainRunner = makeChainRunner({
 /* RESTART TRUTH (2026-07-06 audit): the router used to hold the posted plan ONLY in memory — after a sidecar
    restart, cron/channel work fired UNROUTED (fallback agent, default-office caps, no per-bay isolation) until
    a browser happened to open and re-post. The last ACCEPTED plan persists beside the other protected state
-   (same durable save/load idiom as cron.jobs.json) and re-arms at boot; setPlan re-validates on load, so a
+   (same durable save/load idiom as cron.jobs.runtime.json) and re-arms at boot; setPlan re-validates on load, so a
    stale or corrupt file is refused and simply leaves routing unarmed — never worse than the old behavior. */
 const ROUTING_FILE = path.join(WORKSPACES, 'routing.plan.json');
 (function restoreRoutingPlan() {
@@ -4416,7 +4416,7 @@ function disabledCapsSet() {
 }
 
 /* ---- cron / scheduled routines store + tick driver (CRON Commit 4b). The job DEFINITIONS persist in a
-   PROTECTED sibling of the fs jail (WORKSPACES/cron.jobs.json, the allowlist idiom above: versioned envelope,
+   PROTECTED sibling of the fs jail (WORKSPACES/cron.jobs.runtime.json, the allowlist idiom above: versioned envelope,
    atomic + DURABLE temp->fsync->rename + .bak last-known-good (G4.2: no double-fire on a crash in the
    advance-before-run window, and no silent routine wipe after a torn/corrupt main),
    load->recover .bak; unrecoverable corrupt->quarantine+empty fail-closed) so the agent's own fs.* tools can neither read nor rewrite
@@ -4424,8 +4424,9 @@ function disabledCapsSet() {
    now-source, id minting and this fs are the ambient half that lives ONLY here. The driver is constructed
    unconditionally (cheap, no I/O), but it only ever runs when the boot block below arms the timer behind the
    SKYNET_CRON_ENABLED gate — so with cron off this is dead weight, never a behavior change. ---- */
-const CRON_FILE = path.join(WORKSPACES, 'cron.jobs.json');
-/* DEGRADED STORE (EMPTY-STORE FAIL-LOUD): when cron.jobs.json AND its .bak are BOTH unreadable the old path
+const CRON_FILE = path.join(WORKSPACES, 'cron.jobs.runtime.json');
+const CRON_LEGACY_FILE = path.join(WORKSPACES, 'cron.jobs.json');
+/* DEGRADED STORE (EMPTY-STORE FAIL-LOUD): when the active cron store AND its .bak are BOTH unreadable the old path
    loaded an empty list behind a console warn, and the next write persisted the wipe as if it were truth. Now
    the corrupt main is quarantined (as before) AND the sidecar remembers it is DEGRADED: { quarantinePath, since }.
    While degraded: the scheduler does NOT tick (a boot reconcile over a phantom-empty list must not fire or
@@ -4435,8 +4436,34 @@ const CRON_FILE = path.join(WORKSPACES, 'cron.jobs.json');
    the Commander acknowledges it or restores the quarantined file and restarts. Sticky for the process. */
 let cronDegraded = null;
 let cronJobs = [];
+function migrateLegacyCronStoreIfNeeded() {
+  if (fs.existsSync(CRON_FILE) || fs.existsSync(CRON_FILE + '.bak')) return;
+  if (!fs.existsSync(CRON_LEGACY_FILE) && !fs.existsSync(CRON_LEGACY_FILE + '.bak')) return;
+
+  const legacy = readJsonResilient({ fs: fs }, CRON_LEGACY_FILE);
+  if (legacy.status === 'ok' || legacy.status === 'recovered') {
+    const intended = cronStore.toEnvelope(cronStore.loadEnvelope(legacy.value).jobs);
+    const proofText = JSON.stringify(intended);
+    const saved = saveJsonVerified({
+      save: () => saveResilient(CRON_FILE, intended),
+      load: () => loadResilient(CRON_FILE, 'cron-migration'),
+      proof: got => JSON.stringify(got) === proofText
+    });
+    if (!saved.ok) {
+      cronDegraded = { quarantinePath: CRON_LEGACY_FILE, since: new Date().toISOString(), reason: 'legacy-migration-write-failed' };
+      throw new Error('legacy cron store migration failed durable read-back: ' + saved.error);
+    }
+    console.warn('[cron] migrated legacy ' + CRON_LEGACY_FILE + ' to ' + CRON_FILE + (legacy.status === 'recovered' ? ' using .bak recovery.' : '.'));
+    return;
+  }
+
+  const problemFile = legacy.problemFile || CRON_LEGACY_FILE;
+  cronDegraded = { quarantinePath: problemFile, since: new Date().toISOString(), reason: 'legacy-migration-blocked' };
+  throw new Error('legacy cron store exists but cannot be safely migrated (' + legacy.status + '): ' + problemFile);
+}
 function loadCronJobs() {
   try {
+    migrateLegacyCronStoreIfNeeded();
     const r = readJsonResilient({ fs: fs }, CRON_FILE);
     if (r.status === 'recovered') console.warn('[cron] recovered ' + CRON_FILE + ' from .bak last-known-good after a torn/corrupt main.');
     else if (r.status === 'corrupt') {
@@ -4480,7 +4507,7 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
   // so we don't just rename — we fsync the temp file's bytes to stable storage BEFORE the rename (per-pid+random
   // tmp so concurrent writers never collide), then best-effort fsync the directory after (Windows-safe). Same
   // durability the ledger/runs appends already get; the protected-state helper also snapshots the prior good
-  // envelope to cron.jobs.json.bak before replacing main, so a torn/corrupt main never boots as amnesiac.
+  // envelope to cron.jobs.runtime.json.bak before replacing main, so a torn/corrupt main never boots as amnesiac.
   const intended = cronStore.toEnvelope(cronJobs);
   // DEGRADED GUARD: never persist an EMPTY envelope over a quarantined store without an explicit override —
   // that write is exactly how a recoverable corruption became a permanent, silent wipe.
@@ -4501,7 +4528,7 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
    with this persisted flag to decide the INITIAL armed state, and a live arm/disarm route flips an IN-MEMORY
    `cronArmed` + (re)starts/clears the tick timer NOW. We do NOT mutate process.env at runtime — that would be
    a hidden lie about the boot-frozen gate; the persisted flag is the durable record, the in-memory bool the
-   live state. The flag lives in the PROTECTED WORKSPACES dir (sibling of the fs jail, like cron.jobs.json) and
+   live state. The flag lives in the PROTECTED WORKSPACES dir (sibling of the fs jail, like cron.jobs.runtime.json) and
    is written through the SAME durable temp→fsync→rename helper (G4.2), so a crash never leaves a torn flag.
    INERT-WHEN-OFF guarantee: a user who never enables cron has no cron.armed.json (load fails closed to false),
    no SKYNET_CRON_ENABLED, so cronArmed=false at boot, no timer is armed, and the off-path is byte-identical. ---- */
@@ -5074,7 +5101,7 @@ function cronTickHealthy() {
    beat pipeline (the ported autopilot.js reason-only flow run through runOnce), the driver wiring, and the timer.
    All the DECISION logic is in the pure planner (nightshift.js) + driver (nightshift-driver.js); this is glue. */
 
-// ---- the persisted driver state ({ v, day, beatsUsedToday, lastBeatAt }) — a sibling of cron.jobs.json, so a
+// ---- the persisted driver state ({ v, day, beatsUsedToday, lastBeatAt }) — a sibling of cron.jobs.runtime.json, so a
 //      restart RESUMES mid-night (same day → same spent leash) instead of resetting. Durable temp→fsync→rename.
 const NIGHTSHIFT_STATE_FILE = path.join(WORKSPACES, 'nightshift.state.json');
 function loadNightshiftState() {

@@ -34,7 +34,7 @@ function seedCompleteStation() {
   write('channels/agent.history.json', { version: 1, messages: [{ role: 'user', content: 'telegram conversation', ts: 2 }] });
   write('agent.notebook.json', { entries: [{ id: 'memory-1', title: 'Remember', body: 'the station' }] });
   write('_commander.dossier.json', { version: 1, block: 'Commander context' });
-  write('cron.jobs.json', { version: 1, jobs: [{ id: 'routine-1', schedule: '0 9 * * 1-5', prompt: 'weekday briefing' }] });
+  write('cron.jobs.runtime.json', { version: 1, jobs: [{ id: 'routine-1', schedule: '0 9 * * 1-5', prompt: 'weekday briefing' }] });
   write('loops.json', { version: 1, loops: [{ id: 'loop-1', objective: 'keep testing until green', status: 'active' }] });
   write('agent.todo.json', { items: [{ id: 'task-1', text: 'ship recovery', done: false }] });
   write('_station.quests.json', { version: 1, quests: [{ id: 'quest-1', title: 'Restore station', state: 'open' }] });

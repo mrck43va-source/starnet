@@ -21,7 +21,7 @@ function run(args) { return cp.spawnSync(process.execPath, [path.join(__dirname,
 write('agent.save.json', { doc: { agent: { id: 'agent' }, station: { rooms: ['r'], props: ['p'] } } });
 write('transcript.jsonl', '{}\n');
 write('agent.notebook.json', { entries: [{ id: 'm' }] });
-write('cron.jobs.json', { jobs: [{ id: 'r' }] });
+write('cron.jobs.runtime.json', { jobs: [{ id: 'r' }] });
 write('loops.json', { loops: [{ id: 'l' }] });
 write('agent.todo.json', { items: [{ id: 't' }] });
 write('projects.json', { projects: [{ id: 'p' }] });
